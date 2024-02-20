@@ -1,0 +1,398 @@
+---
+title: "Project of EU with spatial data"
+author: "Shuai Hu & Jin Huang"
+date: "2024"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      toc_collapsed: true
+    toc_depth: 5
+    number_sections: false
+    theme: readable
+---
+
+```{r setup, include=FALSE,results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+The poverty rate is a measure used to assess the degree of poverty within a specific region, group, or country. It is typically expressed as a percentage, representing the proportion of the population in a state of poverty over the total population during a certain period. The poverty rate is a crucial indicator in the fields of poverty research and socio-economic development. It aids in evaluating the extent of poverty, formulating poverty alleviation policies, and monitoring the fairness of socio-economic conditions.
+
+The poverty rate is a problem faced by the whole world. This time we focus on the causal relationship between the poverty rate and related independent variables in EU countries in 2011 and 2020 (to maintain data integrity, the data does not include the United Kingdom) and conduct Simple spatial data analysis.
+
+## Prepareing the data
+
+
+### Loading the packages
+
+
+```{r,echo=FALSE}
+if (!require("ggplot2")) {
+  install.packages("ggplot2")
+  library('ggplot2')
+}
+
+if (!require("tidyverse")) {
+  install.packages("tidyverse")
+  library('tidyverse')
+}
+
+if (!require("rnaturalearth")) {
+  install.packages("rnaturalearth")
+  library('rnaturalearth')
+}
+
+if (!require("cowplot")) {
+  install.packages("cowplot")
+  library('cowplot')
+}
+
+if (!require("sf")) {
+  install.packages("sf")
+  library('sf')
+}
+
+if (!require("ggmap")) {
+  install.packages("ggmap")
+  library('ggmap')
+}
+
+if (!require("leaflet")) {
+  install.packages("leaflet")
+  library('leaflet')
+}
+
+if (!require("gridExtra")) {
+  install.packages("gridExtra")
+  library('gridExtra')
+}
+
+if (!require("patchwork")) {
+  install.packages("patchwork")
+  library('patchwork')
+}
+
+if (!require("spdep")) {
+  install.packages("spdep")
+  library('spdep')
+}
+
+
+if (!require("sp")) {
+  install.packages("sp")
+  library('sp')
+}
+if (!require("stringr")) {
+  install.packages("stringr")
+  library('stringr')
+}
+
+```
+
+### Loading the data
+
+```{r }
+options(scipen = 10)
+poverty_data <- read.csv("poverty.csv")
+minimumWage <- read.csv("minimumWage.csv")
+Overcrowding_rate <- read.csv("Overcrowding rate.csv")
+unemployment_rate <- read.csv("unemployment rate.csv")
+length(Overcrowding_rate)
+EU <- st_read("Europe_merged.shp")
+world <- ne_countries(scale = "medium", returnclass = "sf")
+europe <- world %>% 
+  filter(continent == 'Europe')
+```
+
+```{r }
+europe <- europe %>%
+  mutate(name = case_when(
+    name == "Czech Rep." ~ "Czechia",
+    TRUE ~ name
+  ))
+```
+
+
+
+```{r }
+EU1<- europe[europe$name %in% c("Austria", "Belgium","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France"
+                                ,"Germany","Greece","Hungary","Ireland","Italy","Latvia","Lithuania"
+                                ,"Luxembourg","Malta","Netherlands","Poland","Portugal","Romania","Slovakia"
+                                ,"Slovenia","Spain","Sweden"), ]
+
+cyprus_data <- world[world$name == "Cyprus",]
+
+```
+
+```{r }
+EU1 <- rbind(EU1, cyprus_data)
+EU1$name
+```
+
+```{r }
+poverty_data <- poverty_data %>% select(Country, X2011, X2020)
+minimumWage <- minimumWage %>% select(Country, X2011, X2020)
+Overcrowding_rate <- Overcrowding_rate %>% select(TIME, X2011, X2020)
+unemployment_rate <- unemployment_rate %>% select(TIME, X2011, X2020)
+
+names(poverty_data) <- gsub("X", "", names(poverty_data))
+names(minimumWage) <- gsub("X", "", names(poverty_data))
+names(Overcrowding_rate) <- gsub("X", "", names(poverty_data))
+names(unemployment_rate) <- gsub("X", "", names(poverty_data))
+
+poverty_data <- poverty_data %>% rename(poverty_data_2011 = "2011",poverty_data_2020 = "2020")
+minimumWage <- minimumWage %>% rename(minimumWage_2011 = "2011",minimumWage_2020 = "2020")
+Overcrowding_rate <- Overcrowding_rate %>% rename(Overcrowding_rate_2011 = "2011",Overcrowding_rate_2020 = "2020")
+unemployment_rate <- unemployment_rate %>% rename(unemployment_rate_2011 = "2011",unemployment_rate_2020 = "2020")
+```
+
+
+
+```{r }
+EU1 <- merge(EU1, poverty_data, by.x = "name", by.y = "Country", all.x = TRUE)
+EU1 <- merge(EU1, minimumWage, by.x = "name", by.y = "Country", all.x = TRUE)
+EU1 <- merge(EU1, Overcrowding_rate, by.x = "name", by.y = "Country", all.x = TRUE)
+EU1 <- merge(EU1, unemployment_rate, by.x = "name", by.y = "Country", all.x = TRUE)
+```
+
+The EU1 object includes the poverty rate, minimum wage, overcrowding rate, and unemployment rate of each country in 2011 and 2020.
+
+
+### the plot of poverty of EU countries in 2011 and 2020. 
+
+```{r }
+format_sep <- function(x) format(x, big.mark = ' ')
+#par(mfrow = c(1, 2))
+
+P1<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  poverty_data_2011)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Poverty data 2011")
+
+P2<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  poverty_data_2020)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Poverty data 2020")
+P1 + P2
+
+
+```
+
+From the plots, we can see that the poverty rate in 2020 is lower than in 2013. Generally, the south part countries have a higher poverty rate than the north part.
+
+
+### the plot of minimum wage of EU countries in 2011 and 2020.
+
+```{r }
+P3<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  minimumWage_2011 )) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Minimum Wage 2011")
+
+P4<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  minimumWage_2020 )) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Minimum Wage 2020")
+P3 + P4
+
+```
+
+From the plots, we can see that the minimum wage in 2020 is higher than in 2013 (except those countries with no minimum wage). Generally, the east part countries have a higher poverty rate than the west part on these plots.
+
+
+### the plot of overcrowding rate of EU countries in 2011 and 2020.
+
+```{r }
+P5<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  Overcrowding_rate_2011)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Overcrowding rate 2011")
+
+P6<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  Overcrowding_rate_2020)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Overcrowding rate 2020")
+P5+ P6
+
+```
+
+From the plots, we can see that the Overcrowding rate is similar between 2011 and 2020 . Generally, the west part countries have a overcrowding rate higher than the east part on these plots.
+
+### the plot of unemployment rate of EU countries in 2011 and 2020.
+
+```{r }
+P7<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  unemployment_rate_2011)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Unemployment rate 2011")
+
+P8<- ggplot(data = EU1) +
+  geom_sf(aes(fill =  unemployment_rate_2020)) +
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt", guide = guide_colorbar(barwidth = 15), name = NULL,
+                       labels = format_sep) +
+  coord_sf(xlim = c(-20, 50), ylim = c(30, 70), expand = TRUE) +
+  theme(legend.position = 'bottom',legend.text = element_text(size = 8),legend.title = element_text(size = 5)
+        ,legend.key.size = unit(0.2, "cm")) +labs(title = "Unemployment rate 2020")
+P7 + P8
+
+```
+
+From the plots, we can see that the unemployment rate in 2020 is lower than in 2011. 
+
+
+## Model
+
+
+```{r }
+lm1 <- lm(poverty_data_2011 ~minimumWage_2011+Overcrowding_rate_2011+unemployment_rate_2011,data=EU1)
+summary(lm1)
+plot(lm1)
+
+
+```
+
+```{r }
+lm2 <- lm(poverty_data_2020 ~minimumWage_2020+Overcrowding_rate_2020+unemployment_rate_2020,data=EU1)
+summary(lm2)
+plot(lm2)
+
+```
+
+In 2011 poverty rate had a strong relation with the unemployment rate, when the unemployment rate increased by 1%, the poverty rate increased by 0.40273% In 2020 poverty rate had a strong relation with the unemployment rate and overcrowding rate.when the unemployment rate increases by 1%, the poverty rate will increase by 0.43333% When the overcrowding rate increases by 1%, poverty rate will increase by 0.14673%.
+
+
+## Spatial Correlation Analysis
+
+
+```{r }
+centroid <- st_centroid(EU1)
+centroid_test <- centroid
+centriod_test <- centroid %>%
+  mutate(lonlat = st_as_text(geometry))
+centriod_test <- centriod_test %>%
+  separate(lonlat, into = c('cat',"lon", "lat"), sep = " ", convert = TRUE)
+centriod_test$lon <- as.numeric(str_replace(centriod_test$lon, "\\(|\\)", ""))
+centriod_test$lat <- as.numeric(str_replace(centriod_test$lat, "\\(|\\)", ""))
+centriod_test
+
+```
+
+```{r }
+
+poverty_data_2011 <- centriod_test %>% select('name','poverty_data_2011','lon','lat')
+poverty_coordinates <- st_coordinates(poverty_data_2011)
+poverty_nb <- knn2nb(knearneigh(poverty_coordinates, k = 5))
+
+```
+
+
+```{r }
+poverty_nb_Matrix <- nb2listw(poverty_nb, style = "W")
+
+moranTestpoverty <- moran.test(poverty_data_2011$poverty_data_2011, poverty_nb_Matrix)
+moranTestpoverty
+```
+
+The Moran's I test is a measure of spatial autocorrelation, which assesses whether the observed values for a variable are clustered, dispersed, or randomly distributed across space. The Moran's I statistic ranges from -1 to 1, with positive values indicating positive spatial autocorrelation (clustering), negative values indicating negative spatial autocorrelation (dispersion), and values close to zero indicating a random spatial pattern.
+
+The p-value is 0.03459, which is less than the commonly used significance level of 0.05. This suggests that there is evidence to reject the null hypothesis of spatial randomness.Alternative hypothesis: The alternative hypothesis is stated as "greater." This means that you are testing for positive spatial autocorrelation (clustering).This shows that countries with high poverty rates are relatively concentrated geographically, which is indeed the case in real life. The western region is more developed than the eastern region.
+
+
+
+```{r }
+
+poverty_data_2020 <- centriod_test %>% select('name','poverty_data_2020','lon','lat')
+poverty_coordinates <- st_coordinates(poverty_data_2020)
+poverty_nb <- knn2nb(knearneigh(poverty_coordinates, k = 5))
+
+```
+
+
+```{r }
+poverty_nb_Matrix <- nb2listw(poverty_nb, style = "W")
+
+moranTestpoverty <- moran.test(poverty_data_2020$poverty_data_2020, poverty_nb_Matrix)
+moranTestpoverty
+```
+The p-value is 0.09132. The null hypothesis cannot be rejected, so the high poverty rates in 2020 are more dispersed. This shows that after 9 years of development, the poverty rates of countries with previously high poverty rates have dropped and the living environment has become better.
+
+## Conclusion
+
+To sum up, through spatial data analysis of EU countries, we know that the unemployment rate greatly affects the poverty rate. After several years of development, the EU's living standards have increased as a whole. By considering the structure of geographic space, we can better understand the relationships between data, especially for phenomena that are geographically dependent.
+
+```{r }
+
+
+```
+
+```{r,echo=FALSE}
+
+# EU1$geometry
+# 
+# rl_coord <- 
+#   EU1 %>%
+#   sf::st_coordinates() %>%
+#   as_tibble() %>%
+#   select("long" = X, "lat" = Y)
+# 
+# rl_coord 
+# 
+# centroids <- EU1 %>% group_by(name) %>% 
+#   summarise(long_centroid = mean(long),lat_centroid =mean(lat))
+# 
+# plot(rl_coord)
+
+```
+
+
+
+```{r ,echo=FALSE}
+#ggplot() +
+ # geom_sf(data = merged_EU) +
+  #theme_minimal()+
+  #labs(title = "Europe Continent Map")
+```
+
+
+```{r,echo=FALSE }
+#sorted_merged_EU <- merged_EU[order(-merged_EU$pop_est), ]
+#sorted_merged_EU
+
+#europe
+#w <- europe[order(-europe$pop_est), ]
+#w
+#length(w)
+#length(sorted_merged_EU)
+```
+
+
+
+
+
+
+
+
